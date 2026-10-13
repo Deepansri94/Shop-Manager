@@ -252,7 +252,7 @@ function downloadAndOpen(url, versionName, manual) {
   }
 
   const downloadsDir = path.join(os.homedir(), 'Downloads');
-  const dest = path.join(downloadsDir, 'ShopManager-Setup.exe');
+  const dest = path.join(downloadsDir, 'Shop-Manager-Setup.exe');
   // CWE-22/23: use || so either condition alone is sufficient to block traversal
   if (!dest.startsWith(downloadsDir + path.sep) || !dest.endsWith('.exe')) {
     if (manual) send('update-result', { status: 'error' });

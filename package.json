@@ -1,5 +1,5 @@
 {
-  "name": "@deepansri94/xerox-shop-manager",
+  "name": "@deepansri94/shop-manager",
   "version": "1.0.0",
   "private": true,
   "description": "Xerox & Stationery Shop Business Management App",
@@ -10,7 +10,7 @@
     "build": "electron-builder --win --x64 --publish never"
   },
   "build": {
-    "appId": "com.xeroxshop.manager",
+    "appId": "com.shopmanager.app",
     "productName": "Shop Manager",
     "win": {
       "target": "nsis"
@@ -34,9 +34,6 @@
     "asarUnpack": [
       "server/**/*"
     ]
-  },
-  "overrides": {
-    "signal-exit": "^4.1.0"
   },
   "devDependencies": {
     "electron": "^44.7.0",

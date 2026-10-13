@@ -61,14 +61,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p release
-          cp dist/*.exe "release/ShopManager-Setup.exe"
+          cp dist/*.exe "release/Shop-Manager-Setup.exe"
           ls -lh release/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Shop-Manager-Windows
-          path: release/ShopManager-Setup.exe
+          path: release/Shop-Manager-Setup.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -123,7 +123,7 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/octet-stream" \
-            "${UPLOAD_URL}?name=ShopManager-Setup.exe" \
-            --data-binary @release/ShopManager-Setup.exe
+            "${UPLOAD_URL}?name=Shop-Manager-Setup.exe" \
+            --data-binary @release/Shop-Manager-Setup.exe
 
           echo "Release ${RELEASE_NAME} published."
