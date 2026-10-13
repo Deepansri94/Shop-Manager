@@ -9,6 +9,17 @@ let mainWindow;
 let qrWindow;
 let serverProcess;
 let statusInterval;
+let csrfToken = null;
+
+// Fetch the per-process CSRF token from the server (retries until available)
+function fetchCsrfToken(retries = 10) {
+  http.get(`${WA_SERVER}/csrf-token`, res => {
+    let d = ''; res.on('data', c => d += c);
+    res.on('end', () => { try { csrfToken = JSON.parse(d).token; } catch {} });
+  }).on('error', () => {
+    if (retries > 0) setTimeout(() => fetchCsrfToken(retries - 1), 1000);
+  });
+}
 
 // ── Start WhatsApp backend server ────────────────────────────────
 function startServer() {
@@ -63,19 +74,21 @@ function openQRWindow() {
 
 ipcMain.on('open-qr', () => openQRWindow());
 
-ipcMain.handle('wa-disconnect', () => new Promise((resolve, reject) => {
-  const req = http.request(`${WA_SERVER}/disconnect`, { method: 'POST', headers: { 'Content-Length': 0 } }, res => {
-    let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(JSON.parse(d)));
+function waPost(endpoint) {
+  return new Promise((resolve, reject) => {
+    const req = http.request(`${WA_SERVER}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Length': 0, 'X-CSRF-Token': csrfToken || '' }
+    }, res => {
+      let d = ''; res.on('data', c => d += c);
+      res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({}); } });
+    });
+    req.on('error', reject); req.end();
   });
-  req.on('error', reject); req.end();
-}));
+}
 
-ipcMain.handle('wa-reconnect', () => new Promise((resolve, reject) => {
-  const req = http.request(`${WA_SERVER}/reconnect`, { method: 'POST', headers: { 'Content-Length': 0 } }, res => {
-    let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(JSON.parse(d)));
-  });
-  req.on('error', reject); req.end();
-}));
+ipcMain.handle('wa-disconnect', () => waPost('/disconnect'));
+ipcMain.handle('wa-reconnect',  () => waPost('/reconnect'));
 ipcMain.handle('check-update', () => checkForUpdate(true));
 ipcMain.handle('save-bill-pdf', async (event, { html, billNo }) => {
   if (event.sender !== mainWindow?.webContents) throw new Error('PDF export is only available from the main app window');
@@ -133,10 +146,9 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // poll WhatsApp status every 3 seconds
+  // fetch CSRF token once server is up, then start polling
+  setTimeout(() => { fetchCsrfToken(); pollStatus(); }, 2000);
   statusInterval = setInterval(pollStatus, 3000);
-  // initial check after server warms up
-  setTimeout(pollStatus, 2000);
 }
 
 // ── Auto-update ──────────────────────────────────────────────────

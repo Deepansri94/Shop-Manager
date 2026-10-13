@@ -1,31 +1,66 @@
 const express = require('express');
-const cors = require('cors');
-const qrcode = require('qrcode');
-const path = require('path');
-const os = require('os');
-const fs = require('fs');
-const multer = require('multer');
+const qrcode  = require('qrcode');
+const path    = require('path');
+const os      = require('os');
+const fs      = require('fs');
+const multer  = require('multer');
+const crypto  = require('crypto');
 
 const app = express();
-const ALLOWED_ORIGINS = ['http://localhost:3001', 'http://127.0.0.1:3001'];
-app.use(cors({ origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.includes(origin)) }));
+
+// ── CWE-942: No wildcard CORS — explicit allowlist only ──────────
+// This server binds to 127.0.0.1 and is only called by the Electron
+// main process (no Origin header) or the Electron renderer (file://,
+// no Origin header). Any request that arrives with an Origin header
+// is a cross-origin browser request and is rejected unconditionally.
+const ALLOWED_ORIGINS = ['http://127.0.0.1:3001', 'http://localhost:3001'];
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && !ALLOWED_ORIGINS.includes(origin)) return res.status(403).json({ error: 'Forbidden' });
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    return res.status(403).json({ error: 'Cross-origin requests are not allowed' });
+  }
+  // Prevent framing and MIME-sniffing
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   next();
 });
+
+// ── CWE-770/400: Strict body-size limits ────────────────────────
 app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+// ── CWE-352/1275: CSRF token guard for all state-changing routes ─
+// A per-process secret token is generated at startup. The Electron
+// main process reads it via GET /csrf-token (localhost-only) and
+// attaches it as X-CSRF-Token on every POST request it makes.
+const CSRF_SECRET = crypto.randomBytes(32).toString('hex');
 
-let sock = null;
-let qrCodeData = null;
-let isConnected = false;
+app.get('/csrf-token', (req, res) => {
+  res.json({ token: CSRF_SECRET });
+});
+
+function csrfGuard(req, res, next) {
+  const token = req.headers['x-csrf-token'];
+  if (!token || token !== CSRF_SECRET) {
+    return res.status(403).json({ error: 'Invalid or missing CSRF token' });
+  }
+  next();
+}
+
+// ── CWE-524: File upload size capped at 8 MB ────────────────────
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 }
+});
+
+let sock            = null;
+let qrCodeData      = null;
+let isConnected     = false;
 let connectionState = 'starting';
 let connectionError = null;
 let manualDisconnect = false;
 
-// persist auth in user home so it survives app updates
+// Persist auth in user home so it survives app updates
 const AUTH_DIR = path.join(os.homedir(), '.shopmanager', 'auth_info');
 if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 
@@ -33,8 +68,8 @@ async function connectWhatsApp() {
   connectionState = 'initializing';
   connectionError = null;
   try {
-    const baileys = require('@whiskeysockets/baileys');
-    const pino = require('pino');
+    const baileys  = require('@whiskeysockets/baileys');
+    const pino     = require('pino');
 
     const makeWASocket = baileys.default || baileys.makeWASocket;
     const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys;
@@ -42,7 +77,7 @@ async function connectWhatsApp() {
     const logger = pino({ level: 'silent' });
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
     const { version, isLatest, error } = await fetchLatestBaileysVersion({ timeout: 10000 });
-    if (!isLatest) console.warn('Could not fetch latest WhatsApp version; using Baileys fallback:', error?.message);
+    if (!isLatest) console.warn('Could not fetch latest WA version; using fallback:', error?.message);
 
     sock = makeWASocket({
       version,
@@ -56,14 +91,14 @@ async function connectWhatsApp() {
 
     sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
       if (qr) {
-        qrCodeData = qr;
-        isConnected = false;
+        qrCodeData      = qr;
+        isConnected     = false;
         connectionState = 'qr';
         connectionError = null;
       }
       if (connection === 'open') {
-        isConnected = true;
-        qrCodeData = null;
+        isConnected     = true;
+        qrCodeData      = null;
         connectionState = 'connected';
         connectionError = null;
         console.log('✅ WhatsApp connected!');
@@ -72,8 +107,10 @@ async function connectWhatsApp() {
         isConnected = false;
         const code = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect = !manualDisconnect && code !== DisconnectReason.loggedOut;
-        connectionState = manualDisconnect ? 'disconnected' : (shouldReconnect ? 'reconnecting' : 'logged-out');
-        connectionError = manualDisconnect ? null : (lastDisconnect?.error?.message || `Connection closed (${code || 'unknown reason'})`);
+        connectionState = manualDisconnect ? 'disconnected'
+          : (shouldReconnect ? 'reconnecting' : 'logged-out');
+        connectionError = manualDisconnect ? null
+          : (lastDisconnect?.error?.message || `Connection closed (${code || 'unknown reason'})`);
         console.log('Connection closed. Reconnect:', shouldReconnect, 'Code:', code);
         if (shouldReconnect) setTimeout(connectWhatsApp, 3000);
       }
@@ -98,11 +135,17 @@ app.get('/qr', async (req, res) => {
   if (!qrCodeData) return res.send(`
     <html><head><meta http-equiv="refresh" content="3">
     <style>body{font-family:sans-serif;text-align:center;padding:60px;background:#fefce8}h2{color:#854d0e}p{color:#64748b}.error{color:#b91c1c;font-size:.9rem;max-width:460px;margin:18px auto}</style>
-    </head>
-    <body>
-    <h2>⏳ ${connectionState === 'retrying' ? 'Retrying WhatsApp connection...' : connectionState === 'reconnecting' ? 'Reconnecting to WhatsApp...' : connectionState === 'logged-out' ? 'WhatsApp logged out' : 'Connecting to WhatsApp...'}</h2>
-    <p>${connectionState === 'logged-out' ? 'This linked device was logged out. Remove it from Linked Devices on your phone, then restart the app to connect again.' : 'The QR code will appear here when WhatsApp is ready. This page refreshes automatically.'}</p>
-    ${connectionError ? `<p class="error">Connection detail: ${connectionError.replace(/[<>&"']/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[ch])}</p>` : ''}
+    </head><body>
+    <h2>⏳ ${connectionState === 'retrying' ? 'Retrying WhatsApp connection...'
+      : connectionState === 'reconnecting' ? 'Reconnecting to WhatsApp...'
+      : connectionState === 'logged-out'   ? 'WhatsApp logged out'
+      : 'Connecting to WhatsApp...'}</h2>
+    <p>${connectionState === 'logged-out'
+      ? 'This linked device was logged out. Remove it from Linked Devices on your phone, then restart the app.'
+      : 'The QR code will appear here when WhatsApp is ready. This page refreshes automatically.'}</p>
+    ${connectionError
+      ? `<p class="error">Detail: ${connectionError.replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'})[c])}</p>`
+      : ''}
     </body></html>`);
 
   const imgSrc = await qrcode.toDataURL(qrCodeData);
@@ -129,19 +172,15 @@ app.get('/status', (req, res) => {
 });
 
 // ── Disconnect ───────────────────────────────────────────────────
-app.post('/disconnect', async (req, res) => {
+app.post('/disconnect', csrfGuard, async (req, res) => {
   manualDisconnect = true;
-  qrCodeData = null;
-  isConnected = false;
-  connectionState = 'disconnected';
-  connectionError = null;
+  qrCodeData       = null;
+  isConnected      = false;
+  connectionState  = 'disconnected';
+  connectionError  = null;
   try {
-    if (sock) {
-      await sock.logout();
-      sock = null;
-    }
+    if (sock) { await sock.logout(); sock = null; }
   } catch { sock = null; }
-  // wipe saved auth so next connect starts fresh with a new QR
   try {
     fs.rmSync(AUTH_DIR, { recursive: true, force: true });
     fs.mkdirSync(AUTH_DIR, { recursive: true });
@@ -150,16 +189,15 @@ app.post('/disconnect', async (req, res) => {
 });
 
 // ── Reconnect ────────────────────────────────────────────────────
-app.post('/reconnect', async (req, res) => {
+app.post('/reconnect', csrfGuard, async (req, res) => {
   manualDisconnect = false;
-  qrCodeData = null;
-  isConnected = false;
-  connectionState = 'initializing';
-  connectionError = null;
+  qrCodeData       = null;
+  isConnected      = false;
+  connectionState  = 'initializing';
+  connectionError  = null;
   try {
     if (sock) { try { await sock.logout(); } catch {} sock = null; }
   } catch { sock = null; }
-  // wipe auth for a clean new session
   try {
     fs.rmSync(AUTH_DIR, { recursive: true, force: true });
     fs.mkdirSync(AUTH_DIR, { recursive: true });
@@ -169,11 +207,12 @@ app.post('/reconnect', async (req, res) => {
 });
 
 // ── Send Bulk ────────────────────────────────────────────────────
-app.post('/send-bulk', async (req, res) => {
+app.post('/send-bulk', csrfGuard, async (req, res) => {
   const { contacts, message } = req.body;
   if (!isConnected) return res.status(503).json({ success: false, error: 'WhatsApp not connected. Please scan QR first.' });
-  if (!contacts?.length || !message) return res.status(400).json({ success: false, error: 'contacts and message required' });
-
+  if (!Array.isArray(contacts) || !contacts.length || !message) {
+    return res.status(400).json({ success: false, error: 'contacts and message required' });
+  }
   const results = [];
   for (const c of contacts) {
     try {
@@ -188,18 +227,31 @@ app.post('/send-bulk', async (req, res) => {
   res.json({ success: true, results });
 });
 
-// ── Send Bulk Media (with attachment) ─────────────────────────────
-app.post('/send-bulk-media', upload.single('attachment'), async (req, res) => {
+// ── Send Bulk Media ───────────────────────────────────────────────
+// CWE-502/1321: contacts field is validated as an array after parsing,
+// not used directly as an object — prevents prototype pollution.
+app.post('/send-bulk-media', csrfGuard, upload.single('attachment'), async (req, res) => {
   let contacts;
-  try { contacts = JSON.parse(req.body.contacts || '[]'); } catch { return res.status(400).json({ success: false, error: 'Invalid contacts format' }); }
-  const message = req.body.message;
-  const file = req.file;
+  try {
+    const parsed = JSON.parse(req.body.contacts || '[]');
+    if (!Array.isArray(parsed)) throw new Error('contacts must be an array');
+    // Validate each contact has only expected scalar fields
+    contacts = parsed.map(c => ({
+      name:  String(c.name  || '').slice(0, 200),
+      phone: String(c.phone || '').slice(0, 20)
+    }));
+  } catch {
+    return res.status(400).json({ success: false, error: 'Invalid contacts format' });
+  }
+
+  const message = String(req.body.message || '').slice(0, 4096);
+  const file    = req.file;
 
   if (!isConnected) return res.status(503).json({ success: false, error: 'WhatsApp not connected. Please scan QR first.' });
   if (!contacts.length || !message) return res.status(400).json({ success: false, error: 'contacts and message required' });
 
   const isImage = file && file.mimetype.startsWith('image/');
-  const isPDF = file && file.mimetype === 'application/pdf';
+  const isPDF   = file && file.mimetype === 'application/pdf';
 
   const results = [];
   for (const c of contacts) {
@@ -208,7 +260,7 @@ app.post('/send-bulk-media', upload.single('attachment'), async (req, res) => {
       if (file && isImage) {
         await sock.sendMessage(jid, { image: file.buffer, caption: message, mimetype: file.mimetype });
       } else if (file && isPDF) {
-        await sock.sendMessage(jid, { document: file.buffer, caption: message, mimetype: 'application/pdf', fileName: file.originalname || 'document.pdf' });
+        await sock.sendMessage(jid, { document: file.buffer, caption: message, mimetype: 'application/pdf', fileName: 'document.pdf' });
       } else {
         await sock.sendMessage(jid, { text: message });
       }
