@@ -1,6 +1,7 @@
 {
-  "name": "xerox-shop-server",
+  "name": "@xerox-shop/server",
   "version": "1.0.0",
+  "private": true,
   "main": "index.js",
   "dependencies": {
     "@hapi/boom": "^10.0.1",

@@ -1,6 +1,7 @@
 {
-  "name": "xerox-shop-manager",
+  "name": "@deepansri94/xerox-shop-manager",
   "version": "1.0.0",
+  "private": true,
   "description": "Xerox & Stationery Shop Business Management App",
   "main": "main.js",
   "author": "Shop Owner",
@@ -36,7 +37,8 @@
   },
   "devDependencies": {
     "electron": "^44.7.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "lodash": "^4.17.21"
   },
   "allowScripts": {
     "electron@36.9.5": true,

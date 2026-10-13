@@ -234,9 +234,22 @@ function checkForUpdate(manual = false) {
 
 function downloadAndOpen(url, versionName, manual) {
   if (manual) send('update-result', { status: 'downloading' });
+
+  // SSRF guard: validate download URL is from a trusted GitHub host before fetching
+  let parsedUrl;
+  try { parsedUrl = new URL(url); } catch {
+    if (manual) send('update-result', { status: 'error' });
+    return;
+  }
+  if (parsedUrl.protocol !== 'https:' || !ALLOWED_REDIRECT_HOSTS.includes(parsedUrl.hostname)) {
+    if (manual) send('update-result', { status: 'error' });
+    return;
+  }
+
   const downloadsDir = path.join(os.homedir(), 'Downloads');
   const dest = path.join(downloadsDir, 'ShopManager-Setup.exe');
-  if (!dest.startsWith(downloadsDir + path.sep) && dest !== path.join(downloadsDir, 'ShopManager-Setup.exe')) {
+  // CWE-22/23: use || so either condition alone is sufficient to block traversal
+  if (!dest.startsWith(downloadsDir + path.sep) || !dest.endsWith('.exe')) {
     if (manual) send('update-result', { status: 'error' });
     return;
   }
