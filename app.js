@@ -2,6 +2,10 @@
 const load = key => JSON.parse(localStorage.getItem(key) || '[]');
 const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 
+// ── Runtime environment detection ────────────────────────────────
+// true only when running inside the Electron desktop app
+const IS_DESKTOP = !!window.electronAPI;
+
 let customers = load('customers');
 let transactions = load('transactions');
 let kataEntries = load('kataEntries');
@@ -54,6 +58,14 @@ document.querySelectorAll('.nav-item').forEach(item => {
     if (item.dataset.page === 'billing') setBillPaidStatus('paid');
   });
 });
+
+// ── Confirm Dialog ──────────────────────────────────────────────
+function showConfirm(msg, onConfirm) {
+  document.getElementById('confirm-modal-msg').textContent = msg;
+  const btn = document.getElementById('confirm-modal-ok');
+  btn.onclick = () => { closeModal('confirm-modal'); onConfirm(); };
+  openModal('confirm-modal');
+}
 
 // ── Toast ────────────────────────────────────────────────────────
 function toast(msg, type = 'success') {
@@ -155,11 +167,12 @@ function editCustomer(id) {
 }
 
 function deleteCustomer(id) {
-  if (!confirm('Delete this customer?')) return;
-  customers = customers.filter(c => c.id !== id);
-  save('customers', customers);
-  renderCustomers();
-  toast('Customer deleted');
+  showConfirm('Delete this customer?', () => {
+    customers = customers.filter(c => c.id !== id);
+    save('customers', customers);
+    renderCustomers();
+    toast('Customer deleted');
+  });
 }
 
 document.getElementById('customer-modal').addEventListener('click', e => {
@@ -223,6 +236,10 @@ function sendPaymentReminder(customerId) {
 }
 
 async function confirmSendReminder() {
+  if (!IS_DESKTOP) {
+    toast('WhatsApp reminders only work in the desktop app', 'error');
+    return;
+  }
   const c = customers.find(x => x.id === _reminderCustomerId);
   const message = document.getElementById('reminder-msg-text').value.trim();
   if (!message) return toast('Message cannot be empty', 'error');
@@ -364,12 +381,13 @@ function editProduct(id) {
 }
 
 function deleteProduct(id) {
-  if (!confirm('Delete this product?')) return;
-  products = products.filter(p => p.id !== id);
-  save('products', products);
-  renderProducts();
-  refreshItemDropdowns();
-  toast('Product deleted');
+  showConfirm('Delete this product?', () => {
+    products = products.filter(p => p.id !== id);
+    save('products', products);
+    renderProducts();
+    refreshItemDropdowns();
+    toast('Product deleted');
+  });
 }
 
 document.getElementById('product-modal').addEventListener('click', e => {
@@ -631,15 +649,16 @@ function saveTransaction() {
 }
 
 function deleteTxn(id) {
-  if (!confirm('Delete this transaction?')) return;
-  transactions = transactions.filter(t => t.id !== id);
-  save('transactions', transactions);
-  kataEntries = kataEntries.filter(k => k.txnId !== id);
-  save('kataEntries', kataEntries);
-  renderTransactions();
-  renderCustomers();
-  renderDashboard();
-  toast('Transaction deleted');
+  showConfirm('Delete this transaction?', () => {
+    transactions = transactions.filter(t => t.id !== id);
+    save('transactions', transactions);
+    kataEntries = kataEntries.filter(k => k.txnId !== id);
+    save('kataEntries', kataEntries);
+    renderTransactions();
+    renderCustomers();
+    renderDashboard();
+    toast('Transaction deleted');
+  });
 }
 
 // ── Billing ──────────────────────────────────────────────────────
@@ -730,7 +749,7 @@ function getBillPrintHTML() {
 async function saveBillAsPDF() {
   if (!lastBill) return toast('Generate a bill first', 'error');
   const html = getBillPrintHTML();
-  if (window.electronAPI?.saveBillPDF) {
+  if (IS_DESKTOP) {
     try {
       const result = await window.electronAPI.saveBillPDF(html, lastBill.billNo);
       if (!result.canceled) toast('Bill saved as PDF! ✅', 'success');
@@ -739,7 +758,7 @@ async function saveBillAsPDF() {
     }
     return;
   }
-
+  // browser fallback — open print dialog
   const win = window.open('', '_blank');
   if (!win) return toast('Allow pop-ups to save the bill as PDF', 'error');
   win.document.write(html);
@@ -770,50 +789,102 @@ function renderMsgCheckboxes() {
     <label>
       <input type="checkbox" value="${c.id}" /> ${c.name} (${c.phone})
     </label>`).join('') || '<span style="color:#94a3b8;font-size:.85rem">No customers added yet</span>';
-  checkWAStatus();
+
+  // show/hide the browser-mode notice and WA controls
+  const notice = document.getElementById('wa-browser-notice');
+  const controls = document.getElementById('wa-controls-wrap');
+  if (notice)  notice.classList.toggle('hidden', IS_DESKTOP);
+  if (controls) controls.classList.toggle('hidden', !IS_DESKTOP);
+
+  if (IS_DESKTOP) checkWAStatus();
 }
 
 async function checkWAStatus() {
-  const badge = document.getElementById('wa-status-badge');
-  if (!badge) return;
+  if (!IS_DESKTOP) return;
   try {
     const res = await fetch(`${WA_SERVER}/status`);
-    const { connected, qrReady } = await res.json();
-    updateWABadge(badge, connected, qrReady);
+    const data = await res.json();
+    updateWABadge(data.connected, data.qrReady, data.connectionState);
   } catch {
-    badge.textContent = '🔴 Server Starting...';
-    badge.className = 'wa-badge offline';
+    updateWABadge(false, false, 'offline');
   }
 }
 
 function openWhatsAppSync() {
-  if (window.electronAPI) {
-    window.electronAPI.openQR();
-  } else {
-    window.open(`${WA_SERVER}/qr`, '_blank', 'noopener');
+  if (!IS_DESKTOP) {
+    toast('WhatsApp connection is only available in the desktop app', 'error');
+    return;
+  }
+  window.electronAPI.openQR();
+}
+
+function updateWABadge(connected, qrReady, connectionState) {
+  const isDisconnected = connectionState === 'disconnected';
+
+  // update all badges on page
+  [['wa-status-badge', 'msg-btn-connect', 'msg-btn-reconnect', 'msg-btn-disconnect'],
+   ['settings-wa-badge', 'settings-btn-connect', 'settings-btn-reconnect', 'settings-btn-disconnect']
+  ].forEach(([badgeId, connectId, reconnectId, disconnectId]) => {
+    const badge = document.getElementById(badgeId);
+    const btnConnect    = document.getElementById(connectId);
+    const btnReconnect  = document.getElementById(reconnectId);
+    const btnDisconnect = document.getElementById(disconnectId);
+    if (!badge) return;
+
+    if (connected) {
+      badge.textContent = '🟢 WhatsApp Connected';
+      badge.className = 'wa-badge connected';
+      if (btnConnect)    btnConnect.style.display    = 'none';
+      if (btnReconnect)  btnReconnect.style.display  = 'inline-flex';
+      if (btnDisconnect) btnDisconnect.style.display = 'inline-flex';
+    } else if (isDisconnected) {
+      badge.textContent = '⚫ Disconnected';
+      badge.className = 'wa-badge offline';
+      if (btnConnect)    btnConnect.style.display    = 'inline-flex';
+      if (btnReconnect)  btnReconnect.style.display  = 'none';
+      if (btnDisconnect) btnDisconnect.style.display = 'none';
+    } else if (qrReady) {
+      badge.textContent = '📱 Scan QR to Connect';
+      badge.className = 'wa-badge qr';
+      if (btnConnect)    btnConnect.style.display    = 'inline-flex';
+      if (btnReconnect)  btnReconnect.style.display  = 'none';
+      if (btnDisconnect) btnDisconnect.style.display = 'none';
+    } else {
+      badge.textContent = '🔴 Connecting...';
+      badge.className = 'wa-badge offline';
+      if (btnConnect)    btnConnect.style.display    = 'none';
+      if (btnReconnect)  btnReconnect.style.display  = 'none';
+      if (btnDisconnect) btnDisconnect.style.display = 'none';
+    }
+  });
+}
+
+async function waDisconnect() {
+  if (!IS_DESKTOP) { toast('Only available in the desktop app', 'error'); return; }
+  try {
+    await window.electronAPI.disconnectWA();
+    updateWABadge(false, false, 'disconnected');
+    toast('WhatsApp disconnected ✅');
+  } catch (err) {
+    toast('Disconnect failed: ' + err.message, 'error');
   }
 }
 
-function updateWABadge(badge, connected, qrReady) {
-  if (connected) {
-    badge.textContent = '🟢 WhatsApp Connected';
-    badge.className = 'wa-badge connected';
-    badge.onclick = null;
-  } else if (qrReady) {
-    badge.textContent = '📱 Tap to Scan QR & Connect';
-    badge.className = 'wa-badge qr';
-    badge.onclick = openWhatsAppSync;
-  } else {
-    badge.textContent = '🔴 Connecting...';
-    badge.className = 'wa-badge offline';
-    badge.onclick = null;
+async function waReconnect() {
+  if (!IS_DESKTOP) { toast('Only available in the desktop app', 'error'); return; }
+  try {
+    updateWABadge(false, false, 'initializing');
+    toast('Starting new WhatsApp session...', 'success');
+    await window.electronAPI.reconnectWA();
+    setTimeout(openWhatsAppSync, 1200);
+  } catch (err) {
+    toast('Reconnect failed: ' + err.message, 'error');
   }
 }
 
-if (window.electronAPI) {
-  window.electronAPI.onWAStatus(({ connected, qrReady }) => {
-    const badge = document.getElementById('wa-status-badge');
-    if (badge) updateWABadge(badge, connected, qrReady);
+if (IS_DESKTOP) {
+  window.electronAPI.onWAStatus(({ connected, qrReady, connectionState }) => {
+    updateWABadge(connected, qrReady, connectionState);
   });
   window.electronAPI.onUpdateResult(({ status, version }) => {
     const btn = document.getElementById('check-update-btn');
@@ -845,6 +916,10 @@ if (window.electronAPI) {
 }
 
 async function sendWhatsApp() {
+  if (!IS_DESKTOP) {
+    toast('WhatsApp messaging only works in the desktop app', 'error');
+    return;
+  }
   const msg = document.getElementById('msg-text').value.trim();
   if (!msg) return toast('Please type a message', 'error');
 
@@ -859,7 +934,7 @@ async function sendWhatsApp() {
   }
   if (!targets.length) return toast('No customers to send to', 'error');
 
-  const btn = document.querySelector('.btn-whatsapp');
+  const btn = document.getElementById('send-whatsapp-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Sending...';
 
@@ -914,19 +989,22 @@ function showSendResults(log, results, total) {
 }
 
 function checkForAppUpdate() {
+  if (!IS_DESKTOP) {
+    const statusEl = document.getElementById('update-status');
+    if (statusEl) {
+      statusEl.style.color = '#92400e';
+      statusEl.innerHTML = '⚠️ App updates are only available in the desktop app. Download the latest installer from GitHub.';
+    }
+    return;
+  }
   const btn = document.getElementById('check-update-btn');
   const statusEl = document.getElementById('update-status');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Checking...'; }
   if (statusEl) { statusEl.innerHTML = ''; statusEl.style.color = ''; }
-  if (window.electronAPI) {
-    window.electronAPI.checkUpdate();
-    setTimeout(() => {
-      if (btn && btn.disabled) { btn.disabled = false; btn.textContent = '🔄 Check for Update'; }
-    }, 12000);
-  } else {
-    if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.innerHTML = '❌ Update check only works in the desktop app.'; }
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Check for Update'; }
-  }
+  window.electronAPI.checkUpdate();
+  setTimeout(() => {
+    if (btn && btn.disabled) { btn.disabled = false; btn.textContent = '🔄 Check for Update'; }
+  }, 12000);
 }
 
 // ── Init ─────────────────────────────────────────────────────────
@@ -945,6 +1023,14 @@ function loadSettingsForm() {
   document.getElementById('s-reminder').value     = settings.reminderTemplate || '';
   const savedLogo = localStorage.getItem('shopLogo');
   if (savedLogo) applyLogo(savedLogo);
+
+  // show correct WA section based on environment
+  const notice   = document.getElementById('settings-wa-browser-notice');
+  const controls = document.getElementById('settings-wa-controls-wrap');
+  if (notice)   notice.classList.toggle('hidden', IS_DESKTOP);
+  if (controls) controls.classList.toggle('hidden', !IS_DESKTOP);
+  if (IS_DESKTOP) checkWAStatus();
+
   renderSettingsPreview();
 }
 
@@ -1045,7 +1131,8 @@ function applyLogo(base64) {
 function applySettingsToUI() {
   document.querySelector('.shop-name-tamil').textContent = settings.nameTamil || '🖨️ Shop';
   document.querySelector('.shop-name-sub').textContent   = settings.nameEnglish;
-  loadLogo();
+  const savedLogo = localStorage.getItem('shopLogo');
+  applyLogo(savedLogo || null);
 }
 
 addBillItem();

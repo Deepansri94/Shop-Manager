@@ -1,5 +1,6 @@
 const { app, BrowserWindow, shell, ipcMain, dialog, utilityProcess } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const http = require('http');
 const https = require('https');
 
@@ -32,8 +33,8 @@ function pollStatus() {
     res.on('data', chunk => data += chunk);
     res.on('end', () => {
       try {
-        const { connected, qrReady } = JSON.parse(data);
-        if (mainWindow) mainWindow.webContents.send('wa-status', { connected, qrReady });
+        const { connected, qrReady, connectionState } = JSON.parse(data);
+        if (mainWindow) mainWindow.webContents.send('wa-status', { connected, qrReady, connectionState });
         if (qrReady && !qrWindow) openQRWindow();
         if (connected && qrWindow) { qrWindow.close(); qrWindow = null; }
       } catch {}
@@ -61,6 +62,20 @@ function openQRWindow() {
 }
 
 ipcMain.on('open-qr', () => openQRWindow());
+
+ipcMain.handle('wa-disconnect', () => new Promise((resolve, reject) => {
+  const req = http.request(`${WA_SERVER}/disconnect`, { method: 'POST', headers: { 'Content-Length': 0 } }, res => {
+    let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(JSON.parse(d)));
+  });
+  req.on('error', reject); req.end();
+}));
+
+ipcMain.handle('wa-reconnect', () => new Promise((resolve, reject) => {
+  const req = http.request(`${WA_SERVER}/reconnect`, { method: 'POST', headers: { 'Content-Length': 0 } }, res => {
+    let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(JSON.parse(d)));
+  });
+  req.on('error', reject); req.end();
+}));
 ipcMain.handle('check-update', () => checkForUpdate(true));
 ipcMain.handle('save-bill-pdf', async (event, { html, billNo }) => {
   if (event.sender !== mainWindow?.webContents) throw new Error('PDF export is only available from the main app window');
@@ -111,7 +126,10 @@ function createWindow() {
   mainWindow.loadFile('index.html');
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) shell.openExternal(url);
+    // Only open external browser for real http/https URLs — never for the local WA server
+    if ((url.startsWith('http://') || url.startsWith('https://')) && !url.startsWith(WA_SERVER)) {
+      shell.openExternal(url);
+    }
     return { action: 'deny' };
   });
 
@@ -123,23 +141,23 @@ function createWindow() {
 
 // ── Auto-update ──────────────────────────────────────────────────
 const RELEASES_API = 'https://api.github.com/repos/Deepansri94/Business-Application/releases/latest';
-const fs = require('fs');
 const os = require('os');
 
 function send(event, payload) {
   if (mainWindow) mainWindow.webContents.send(event, payload);
 }
 
+const ALLOWED_REDIRECT_HOSTS = ['api.github.com', 'github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com'];
+
 function httpsGet(url, headers, callback) {
-  const opts = new URL(url);
-  const reqOpts = {
-    hostname: opts.hostname,
-    path: opts.pathname + opts.search,
-    headers
-  };
-  const req = https.get(reqOpts, res => {
+  let opts;
+  try { opts = new URL(url); } catch { return callback(new Error('Invalid URL')); }
+  if (opts.protocol !== 'https:') return callback(new Error('Only HTTPS allowed'));
+  const req = https.get({ hostname: opts.hostname, path: opts.pathname + opts.search, headers }, res => {
     if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-      // follow redirect with no custom headers (S3 rejects Authorization header)
+      let redir;
+      try { redir = new URL(res.headers.location); } catch { return callback(new Error('Invalid redirect URL')); }
+      if (!ALLOWED_REDIRECT_HOSTS.includes(redir.hostname)) return callback(new Error('Redirect to untrusted host blocked'));
       return httpsGet(res.headers.location, {}, callback);
     }
     callback(null, res);
@@ -204,7 +222,12 @@ function checkForUpdate(manual = false) {
 
 function downloadAndOpen(url, versionName, manual) {
   if (manual) send('update-result', { status: 'downloading' });
-  const dest = path.join(os.homedir(), 'Downloads', 'ShopManager-Setup.exe');
+  const downloadsDir = path.join(os.homedir(), 'Downloads');
+  const dest = path.join(downloadsDir, 'ShopManager-Setup.exe');
+  if (!dest.startsWith(downloadsDir + path.sep) && dest !== path.join(downloadsDir, 'ShopManager-Setup.exe')) {
+    if (manual) send('update-result', { status: 'error' });
+    return;
+  }
   const file = fs.createWriteStream(dest);
 
   httpsGet(url, { 'User-Agent': 'ShopManager-App', 'Accept': 'application/octet-stream' }, (err, res) => {

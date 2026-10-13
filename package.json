@@ -26,21 +26,17 @@
       "!server/auth_info/**",
       "!.git/**",
       "!*.bat",
-      "!assets/**"
+      "!assets/**",
+      "!docs/**",
+      "!*.md"
     ],
     "asarUnpack": [
       "server/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "server/node_modules",
-        "to": "app.asar.unpacked/server/node_modules"
-      }
     ]
   },
   "devDependencies": {
-    "electron": "^36.9.5",
-    "electron-builder": "^26.0.12"
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
   },
   "allowScripts": {
     "electron@36.9.5": true,

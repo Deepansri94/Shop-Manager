@@ -112,9 +112,19 @@ h3 { font-size: 1.1rem; color: #334155; margin: 24px 0 12px; }
 .wa-badge.connected { background: #dcfce7; color: #166534; }
 .wa-badge.qr { background: #fef9c3; color: #854d0e; }
 .wa-badge.offline { background: #fee2e2; color: #991b1b; }
-.btn-whatsapp { background: #25d366; color: #fff; padding: 10px 22px; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background .2s; }
+.btn-whatsapp { background: #25d366; color: #fff; padding: 10px 22px; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background .2s; display: inline-flex; align-items: center; gap: 6px; }
 .btn-whatsapp:hover { background: #128c7e; }
+.btn-wa-reconnect { background: #6366f1; color: #fff; padding: 10px 22px; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background .2s; display: inline-flex; align-items: center; gap: 6px; }
+.btn-wa-reconnect:hover { background: #4f46e5; }
+.btn-wa-disconnect { background: #fee2e2; color: #dc2626; padding: 10px 22px; border: 1.5px solid #fecaca; border-radius: 8px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 6px; }
+.btn-wa-disconnect:hover { background: #fecaca; }
+.wa-control-panel { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; padding: 14px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; }
+.wa-control-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .wa-info { background: #e7f8ee; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; color: #166534; margin-bottom: 16px; }
+.wa-browser-notice { display: flex; gap: 14px; align-items: flex-start; background: #fffbeb; border: 1.5px solid #fcd34d; border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; color: #78350f; font-size: .88rem; line-height: 1.6; }
+.wa-browser-notice strong { display: block; font-size: .95rem; margin-bottom: 4px; color: #92400e; }
+.wa-browser-notice p { margin: 0; }
+.wa-notice-icon { font-size: 1.6rem; flex-shrink: 0; margin-top: 2px; }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .modal { background: #fff; border-radius: 14px; padding: 28px; width: 420px; max-width: 95vw; box-shadow: 0 8px 32px rgba(0,0,0,.15); }

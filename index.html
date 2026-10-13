@@ -180,10 +180,24 @@
       </div>
 
       <div class="card settings-card" style="margin-top:20px">
-        <h3>WhatsApp Sync</h3>
-        <p style="color:#64748b;font-size:.88rem;margin-bottom:14px">Connect WhatsApp or scan the QR code again if the app asks you to link your device.</p>
-        <div class="btn-row">
-          <button class="btn btn-whatsapp" onclick="openWhatsAppSync()">🔄 Sync WhatsApp / Scan QR</button>
+        <h3>WhatsApp Connection</h3>
+        <p style="color:#64748b;font-size:.88rem;margin-bottom:14px">Manage your WhatsApp connection. Disconnect to unlink this device, or Reconnect to start a fresh session with a new QR code.</p>
+        <div id="settings-wa-browser-notice" class="wa-browser-notice hidden">
+          <span class="wa-notice-icon">🖥️</span>
+          <div>
+            <strong>Desktop App Required</strong>
+            <p>WhatsApp features are only available in the desktop app. Open this app on your Windows PC to connect WhatsApp.</p>
+          </div>
+        </div>
+        <div id="settings-wa-controls-wrap" class="hidden">
+          <div class="wa-control-panel">
+            <div id="settings-wa-badge" class="wa-badge offline">🔴 Checking...</div>
+            <div class="wa-control-btns">
+              <button class="btn btn-whatsapp" id="settings-btn-connect" onclick="openWhatsAppSync()" style="display:none">📱 Connect WhatsApp</button>
+              <button class="btn btn-wa-reconnect" id="settings-btn-reconnect" onclick="waReconnect()" style="display:none">🔄 Reconnect</button>
+              <button class="btn btn-wa-disconnect" id="settings-btn-disconnect" onclick="waDisconnect()" style="display:none">⛔ Disconnect</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -205,9 +219,27 @@
     <!-- Messages -->
     <section id="messages" class="page">
       <h2>📱 Send WhatsApp Messages</h2>
-      <div id="wa-status-badge" class="wa-badge offline" onclick="checkWAStatus()">🔴 Checking server...</div>
-      <div class="btn-row" style="margin-bottom:16px">
-        <button class="btn btn-whatsapp" onclick="openWhatsAppSync()">🔄 Sync WhatsApp / Scan QR</button>
+
+      <!-- shown only in browser, hidden in desktop app -->
+      <div id="wa-browser-notice" class="wa-browser-notice hidden">
+        <span class="wa-notice-icon">🖥️</span>
+        <div>
+          <strong>Desktop App Required</strong>
+          <p>WhatsApp messaging works only in the <strong>Shop Manager desktop app</strong>. You are currently viewing this in a web browser where the WhatsApp backend is not available.</p>
+          <p style="margin-top:6px">Download and install the desktop app to use WhatsApp features like sending messages, payment reminders, and QR connection.</p>
+        </div>
+      </div>
+
+      <!-- shown only in desktop app -->
+      <div id="wa-controls-wrap" class="hidden">
+        <div class="wa-control-panel">
+          <div id="wa-status-badge" class="wa-badge offline">🔴 Checking server...</div>
+          <div class="wa-control-btns">
+            <button class="btn btn-whatsapp" id="msg-btn-connect" onclick="openWhatsAppSync()" style="display:none">📱 Connect WhatsApp</button>
+            <button class="btn btn-wa-reconnect" id="msg-btn-reconnect" onclick="waReconnect()" style="display:none">🔄 Reconnect</button>
+            <button class="btn btn-wa-disconnect" id="msg-btn-disconnect" onclick="waDisconnect()" style="display:none">⛔ Disconnect</button>
+          </div>
+        </div>
       </div>
       <div class="card msg-form">
         <div class="wa-info">💡 Messages are sent silently in the background. Make sure WhatsApp is connected before sending.</div>
@@ -231,7 +263,7 @@
           <input type="file" id="msg-attachment" accept="image/*,.pdf" />
         </div>
         <div class="btn-row">
-          <button class="btn btn-whatsapp" onclick="sendWhatsApp()">💬 Send via WhatsApp</button>
+          <button class="btn btn-whatsapp" id="send-whatsapp-btn" onclick="sendWhatsApp()">💬 Send via WhatsApp</button>
         </div>
       </div>
       <div id="msg-log" class="msg-log"></div>
@@ -334,6 +366,17 @@
       <div class="kata-total-row">
         <span>Total Unpaid:</span>
         <span id="kata-total" class="kata-total-amt">₹0.00</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Dialog Modal -->
+  <div class="modal-overlay hidden" id="confirm-modal">
+    <div class="modal" style="max-width:360px">
+      <p id="confirm-modal-msg" style="margin-bottom:20px;font-size:.95rem"></p>
+      <div class="btn-row">
+        <button class="btn btn-danger" id="confirm-modal-ok">Confirm</button>
+        <button class="btn btn-outline" onclick="closeModal('confirm-modal')">Cancel</button>
       </div>
     </div>
   </div>

@@ -7,16 +7,23 @@ const fs = require('fs');
 const multer = require('multer');
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+const ALLOWED_ORIGINS = ['http://localhost:3001', 'http://127.0.0.1:3001'];
+app.use(cors({ origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.includes(origin)) }));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) return res.status(403).json({ error: 'Forbidden' });
+  next();
+});
+app.use(express.json({ limit: '1mb' }));
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
 let sock = null;
 let qrCodeData = null;
 let isConnected = false;
 let connectionState = 'starting';
 let connectionError = null;
+let manualDisconnect = false;
 
 // persist auth in user home so it survives app updates
 const AUTH_DIR = path.join(os.homedir(), '.shopmanager', 'auth_info');
@@ -64,9 +71,9 @@ async function connectWhatsApp() {
       if (connection === 'close') {
         isConnected = false;
         const code = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = code !== DisconnectReason.loggedOut;
-        connectionState = shouldReconnect ? 'reconnecting' : 'logged-out';
-        connectionError = lastDisconnect?.error?.message || `Connection closed (${code || 'unknown reason'})`;
+        const shouldReconnect = !manualDisconnect && code !== DisconnectReason.loggedOut;
+        connectionState = manualDisconnect ? 'disconnected' : (shouldReconnect ? 'reconnecting' : 'logged-out');
+        connectionError = manualDisconnect ? null : (lastDisconnect?.error?.message || `Connection closed (${code || 'unknown reason'})`);
         console.log('Connection closed. Reconnect:', shouldReconnect, 'Code:', code);
         if (shouldReconnect) setTimeout(connectWhatsApp, 3000);
       }
@@ -121,6 +128,46 @@ app.get('/status', (req, res) => {
   res.json({ connected: isConnected, qrReady: !!qrCodeData, connectionState, connectionError });
 });
 
+// ── Disconnect ───────────────────────────────────────────────────
+app.post('/disconnect', async (req, res) => {
+  manualDisconnect = true;
+  qrCodeData = null;
+  isConnected = false;
+  connectionState = 'disconnected';
+  connectionError = null;
+  try {
+    if (sock) {
+      await sock.logout();
+      sock = null;
+    }
+  } catch { sock = null; }
+  // wipe saved auth so next connect starts fresh with a new QR
+  try {
+    fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+    fs.mkdirSync(AUTH_DIR, { recursive: true });
+  } catch (e) { console.error('Auth wipe error:', e.message); }
+  res.json({ success: true });
+});
+
+// ── Reconnect ────────────────────────────────────────────────────
+app.post('/reconnect', async (req, res) => {
+  manualDisconnect = false;
+  qrCodeData = null;
+  isConnected = false;
+  connectionState = 'initializing';
+  connectionError = null;
+  try {
+    if (sock) { try { await sock.logout(); } catch {} sock = null; }
+  } catch { sock = null; }
+  // wipe auth for a clean new session
+  try {
+    fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+    fs.mkdirSync(AUTH_DIR, { recursive: true });
+  } catch (e) { console.error('Auth wipe error:', e.message); }
+  res.json({ success: true });
+  setTimeout(connectWhatsApp, 500);
+});
+
 // ── Send Bulk ────────────────────────────────────────────────────
 app.post('/send-bulk', async (req, res) => {
   const { contacts, message } = req.body;
@@ -143,7 +190,8 @@ app.post('/send-bulk', async (req, res) => {
 
 // ── Send Bulk Media (with attachment) ─────────────────────────────
 app.post('/send-bulk-media', upload.single('attachment'), async (req, res) => {
-  const contacts = JSON.parse(req.body.contacts || '[]');
+  let contacts;
+  try { contacts = JSON.parse(req.body.contacts || '[]'); } catch { return res.status(400).json({ success: false, error: 'Invalid contacts format' }); }
   const message = req.body.message;
   const file = req.file;
 
