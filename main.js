@@ -139,10 +139,15 @@ function createWindow() {
   mainWindow.loadFile('index.html');
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Only open external browser for real http/https URLs — never for the local WA server
-    if ((url.startsWith('http://') || url.startsWith('https://')) && !url.startsWith(WA_SERVER)) {
-      shell.openExternal(url);
-    }
+    try {
+      const parsed = new URL(url);
+      const h = parsed.hostname;
+      const isPrivate = h === 'localhost' || h === '127.0.0.1' || h === '::1'
+        || /^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h);
+      if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && !isPrivate) {
+        shell.openExternal(url);
+      }
+    } catch {}
     return { action: 'deny' };
   });
 

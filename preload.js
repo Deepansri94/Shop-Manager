@@ -1,4 +1,6 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const electron = require('electron');
+const contextBridge = electron.contextBridge;
+const ipcRenderer = electron.ipcRenderer;
 
 contextBridge.exposeInMainWorld('electronAPI', {
   openQR: () => ipcRenderer.send('open-qr'),
