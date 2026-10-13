@@ -35,10 +35,12 @@
       "server/**/*"
     ]
   },
+  "overrides": {
+    "signal-exit": "^4.1.0"
+  },
   "devDependencies": {
     "electron": "^44.7.0",
-    "electron-builder": "^26.15.3",
-    "lodash": "^4.17.21"
+    "electron-builder": "^26.15.3"
   },
   "allowScripts": {
     "electron@36.9.5": true,
