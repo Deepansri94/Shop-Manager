@@ -1,8 +1,8 @@
-﻿// ── Storage helpers ──────────────────────────────────────────────
+// -- Storage helpers ----------------------------------------------
 const load = key => JSON.parse(localStorage.getItem(key) || '[]');
 const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 
-// ── Runtime environment detection ────────────────────────────────
+// -- Runtime environment detection --------------------------------
 // true only when running inside the Electron desktop app
 const IS_DESKTOP = !!window.electronAPI;
 
@@ -10,7 +10,7 @@ let customers = load('customers');
 let transactions = load('transactions');
 let kataEntries = load('kataEntries');
 let products = load('products');
-const DEFAULT_REMINDER = `📌 *{shop}*
+const DEFAULT_REMINDER = `?? *{shop}*
 
 Vanakkam {name},
 
@@ -23,7 +23,7 @@ This is a gentle reminder that the following payment is pending:
 Kindly settle the amount at your earliest convenience.
 {upi}
 
-Thank you! 🙏`;
+Thank you! ??`;
 
 let settings = JSON.parse(localStorage.getItem('settings') || JSON.stringify({
   nameTamil: '',
@@ -44,7 +44,7 @@ if (!settings.reminderTemplate) {
   localStorage.setItem('settings', JSON.stringify(settings));
 }
 
-// ── Navigation ───────────────────────────────────────────────────
+// -- Navigation ---------------------------------------------------
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -59,15 +59,15 @@ document.querySelectorAll('.nav-item').forEach(item => {
   });
 });
 
-// ── Confirm Dialog ──────────────────────────────────────────────
-function showConfirm(msg, onConfirm) {
+// -- Confirm Dialog ----------------------------------------------
+function showDialog(msg, onConfirm) {
   document.getElementById('confirm-modal-msg').textContent = msg;
   const btn = document.getElementById('confirm-modal-ok');
   btn.onclick = () => { closeModal('confirm-modal'); onConfirm(); };
   openModal('confirm-modal');
 }
 
-// ── Toast ────────────────────────────────────────────────────────
+// -- Toast --------------------------------------------------------
 function toast(msg, type = 'success') {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -75,11 +75,11 @@ function toast(msg, type = 'success') {
   setTimeout(() => t.className = 'toast hidden', 3000);
 }
 
-// ── Modal ────────────────────────────────────────────────────────
+// -- Modal --------------------------------------------------------
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-// ── Dashboard ────────────────────────────────────────────────────
+// -- Dashboard ----------------------------------------------------
 function renderDashboard() {
   const today = new Date().toDateString();
   const todayTxns = transactions.filter(t => new Date(t.date).toDateString() === today);
@@ -87,11 +87,11 @@ function renderDashboard() {
 
   document.getElementById('stat-customers').textContent = customers.length;
   document.getElementById('stat-txns').textContent = transactions.length;
-  document.getElementById('stat-today').textContent = '₹' + todayTxns.reduce((s, t) => s + t.total, 0).toFixed(2);
-  document.getElementById('stat-revenue').textContent = '₹' + transactions.reduce((s, t) => s + t.total, 0).toFixed(2);
+  document.getElementById('stat-today').textContent = '?' + todayTxns.reduce((s, t) => s + t.total, 0).toFixed(2);
+  document.getElementById('stat-revenue').textContent = '?' + transactions.reduce((s, t) => s + t.total, 0).toFixed(2);
 
   const unpaidEl = document.getElementById('stat-unpaid');
-  if (unpaidEl) unpaidEl.textContent = '₹' + totalUnpaid.toFixed(2);
+  if (unpaidEl) unpaidEl.textContent = '?' + totalUnpaid.toFixed(2);
 
   const tbody = document.getElementById('recent-txns-body');
   const recent = [...transactions].reverse().slice(0, 8);
@@ -100,12 +100,12 @@ function renderDashboard() {
       <td>${new Date(t.date).toLocaleDateString('en-IN')}</td>
       <td>${t.customerName || 'Walk-in'}</td>
       <td>${t.items.map(i => i.name).join(', ')}</td>
-      <td>₹${t.total.toFixed(2)}</td>
-      <td><span class="badge-${t.paidStatus === 'unpaid' ? 'unpaid' : 'paid'}">${t.paidStatus === 'unpaid' ? '❌ Unpaid' : '✅ Paid'}</span></td>
+      <td>?${t.total.toFixed(2)}</td>
+      <td><span class="badge-${t.paidStatus === 'unpaid' ? 'unpaid' : 'paid'}">${t.paidStatus === 'unpaid' ? '? Unpaid' : '? Paid'}</span></td>
     </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#94a3b8">No transactions yet</td></tr>';
 }
 
-// ── Customers ────────────────────────────────────────────────────
+// -- Customers ----------------------------------------------------
 function getCustomerUnpaid(customerId) {
   return kataEntries.filter(k => k.customerId === customerId && k.paidStatus === 'unpaid')
     .reduce((s, k) => s + k.total, 0);
@@ -122,14 +122,14 @@ function renderCustomers() {
       <td>${c.email || '-'}</td>
       <td>
         ${unpaid > 0
-          ? `<span class="badge-unpaid">❌ ₹${unpaid.toFixed(2)} (${unpaidCount} item${unpaidCount > 1 ? 's' : ''})</span>`
-          : `<span class="badge-paid">✅ Clear</span>`}
+          ? `<span class="badge-unpaid">? ?${unpaid.toFixed(2)} (${unpaidCount} item${unpaidCount > 1 ? 's' : ''})</span>`
+          : `<span class="badge-paid">? Clear</span>`}
       </td>
       <td>
-        <button class="btn-kata" onclick="openKataBook('${c.id}')">📒 Kata</button>
-        ${unpaid > 0 ? `<button class="btn-remind" onclick="sendPaymentReminder('${c.id}')">📲 Remind</button>` : ''}
-        <button class="btn-edit" onclick="editCustomer('${c.id}')">✏️ Edit</button>
-        <button class="btn-danger" onclick="deleteCustomer('${c.id}')">🗑️</button>
+        <button class="btn-kata" onclick="openKataBook('${c.id}')">?? Kata</button>
+        ${unpaid > 0 ? `<button class="btn-remind" onclick="sendPaymentReminder('${c.id}')">?? Remind</button>` : ''}
+        <button class="btn-edit" onclick="editCustomer('${c.id}')">?? Edit</button>
+        <button class="btn-danger" onclick="deleteCustomer('${c.id}')">???</button>
       </td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#94a3b8">No customers added</td></tr>';
@@ -167,7 +167,7 @@ function editCustomer(id) {
 }
 
 function deleteCustomer(id) {
-  showConfirm('Delete this customer?', () => {
+  showDialog('Delete this customer?', () => {
     customers = customers.filter(c => c.id !== id);
     save('customers', customers);
     renderCustomers();
@@ -207,7 +207,7 @@ window.openModal = function(id) {
   document.getElementById(id).classList.remove('hidden');
 };
 
-// ── Payment Reminder ───────────────────────────────────────────
+// -- Payment Reminder -------------------------------------------
 let _reminderCustomerId = null;
 
 function sendPaymentReminder(customerId) {
@@ -216,7 +216,7 @@ function sendPaymentReminder(customerId) {
   const total = unpaidEntries.reduce((s, k) => s + k.total, 0);
 
   const itemLines = unpaidEntries.map(k =>
-    `  • ${k.items.map(i => `${i.name} x${i.qty}`).join(', ')} — ₹${k.total.toFixed(2)} (${new Date(k.date).toLocaleDateString('en-IN')})`
+    `  � ${k.items.map(i => `${i.name} x${i.qty}`).join(', ')} � ?${k.total.toFixed(2)} (${new Date(k.date).toLocaleDateString('en-IN')})`
   ).join('\n');
 
   const template = settings.reminderTemplate || '';
@@ -226,7 +226,7 @@ function sendPaymentReminder(customerId) {
     .replace(/{name}/g, c.name)
     .replace(/{shop}/g, `${settings.nameTamil} - ${settings.nameEnglish}`)
     .replace(/{items}/g, itemLines)
-    .replace(/{total}/g, `₹${total.toFixed(2)}`)
+    .replace(/{total}/g, `?${total.toFixed(2)}`)
     .replace(/{phone}/g, settings.phone || '')
     .replace(/{upi}/g, upiLine);
 
@@ -254,7 +254,7 @@ async function confirmSendReminder() {
     if (!data.success) throw new Error(data.error);
     const ok = data.results[0]?.status === 'sent';
     closeModal('reminder-modal');
-    toast(ok ? `✅ Reminder sent to ${c.name}!` : `❌ Failed to send`, ok ? 'success' : 'error');
+    toast(ok ? `? Reminder sent to ${c.name}!` : `? Failed to send`, ok ? 'success' : 'error');
   } catch (err) {
     toast('Failed: ' + err.message, 'error');
   }
@@ -268,10 +268,10 @@ function insertTag(tag) {
   ta.selectionStart = ta.selectionEnd = pos + tag.length;
 }
 
-// ── Kata Book ────────────────────────────────────────────────────
+// -- Kata Book ----------------------------------------------------
 function openKataBook(customerId) {
   const c = customers.find(x => x.id === customerId);
-  document.getElementById('kata-modal-title').textContent = `📒 ${c.name} — கட்டா புத்தகம்`;
+  document.getElementById('kata-modal-title').textContent = `?? ${c.name} � ????? ????????`;
   renderKataEntries(customerId);
   openModal('kata-modal');
 }
@@ -283,7 +283,7 @@ function renderKataEntries(customerId) {
 
   if (!entries.length) {
     container.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No entries yet</p>';
-    document.getElementById('kata-total').textContent = '₹0.00';
+    document.getElementById('kata-total').textContent = '?0.00';
     return;
   }
 
@@ -291,17 +291,17 @@ function renderKataEntries(customerId) {
     <div class="kata-entry ${k.paidStatus === 'paid' ? 'paid-entry' : ''}">
       <div class="kata-entry-info">
         <div class="kata-date">${new Date(k.date).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
-          ${k.paidStatus === 'paid' ? `<span style="color:#16a34a;margin-left:6px">✅ Paid on ${new Date(k.paidOn).toLocaleDateString('en-IN')}</span>` : ''}
+          ${k.paidStatus === 'paid' ? `<span style="color:#16a34a;margin-left:6px">? Paid on ${new Date(k.paidOn).toLocaleDateString('en-IN')}</span>` : ''}
         </div>
         <div class="kata-items">${k.items.map(i => `${i.name} x${i.qty}`).join(', ')}</div>
       </div>
-      <div class="kata-entry-amt ${k.paidStatus === 'paid' ? 'paid-amt' : ''}">₹${k.total.toFixed(2)}</div>
+      <div class="kata-entry-amt ${k.paidStatus === 'paid' ? 'paid-amt' : ''}">?${k.total.toFixed(2)}</div>
       ${k.paidStatus === 'unpaid'
-        ? `<button class="btn-pay" onclick="markKataPaid('${k.id}','${customerId}')">✅ Mark Paid</button>`
+        ? `<button class="btn-pay" onclick="markKataPaid('${k.id}','${customerId}')">? Mark Paid</button>`
         : `<span style="font-size:.78rem;color:#16a34a;font-weight:600">PAID</span>`}
     </div>`).join('');
 
-  document.getElementById('kata-total').textContent = '₹' + totalUnpaid.toFixed(2);
+  document.getElementById('kata-total').textContent = '?' + totalUnpaid.toFixed(2);
 }
 
 function markKataPaid(kataId, customerId) {
@@ -309,7 +309,7 @@ function markKataPaid(kataId, customerId) {
   kataEntries = kataEntries.map(k => k.id === kataId ? { ...k, paidStatus: 'paid', paidOn: new Date().toISOString() } : k);
   save('kataEntries', kataEntries);
 
-  // sync matching transaction to paid — use txnId if available, else fallback
+  // sync matching transaction to paid � use txnId if available, else fallback
   if (kata) {
     transactions = transactions.map(t => {
       const matchById   = kata.txnId && t.id === kata.txnId;
@@ -325,20 +325,20 @@ function markKataPaid(kataId, customerId) {
   renderCustomers();
   renderTransactions();
   renderDashboard();
-  toast('Marked as Paid! ✅');
+  toast('Marked as Paid! ?');
 }
 
-// ── Products ────────────────────────────────────────────
+// -- Products --------------------------------------------
 function renderProducts() {
   const tbody = document.getElementById('products-body');
   tbody.innerHTML = products.map(p => `
     <tr>
       <td>${p.name}</td>
       <td><span class="cat-badge">${p.category}</span></td>
-      <td>₹${parseFloat(p.price).toFixed(2)} <span style="color:#94a3b8;font-size:.78rem">${p.unit || ''}</span></td>
+      <td>?${parseFloat(p.price).toFixed(2)} <span style="color:#94a3b8;font-size:.78rem">${p.unit || ''}</span></td>
       <td>
-        <button class="btn-edit" onclick="editProduct('${p.id}')">✏️ Edit</button>
-        <button class="btn-danger" onclick="deleteProduct('${p.id}')">🗑️</button>
+        <button class="btn-edit" onclick="editProduct('${p.id}')">?? Edit</button>
+        <button class="btn-danger" onclick="deleteProduct('${p.id}')">???</button>
       </td>
     </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:#94a3b8">No products added yet</td></tr>';
 }
@@ -381,7 +381,7 @@ function editProduct(id) {
 }
 
 function deleteProduct(id) {
-  showConfirm('Delete this product?', () => {
+  showDialog('Delete this product?', () => {
     products = products.filter(p => p.id !== id);
     save('products', products);
     renderProducts();
@@ -394,7 +394,7 @@ document.getElementById('product-modal').addEventListener('click', e => {
   if (e.target.classList.contains('modal-overlay')) closeModal('product-modal');
 });
 
-// ── Paid/Unpaid Toggle ───────────────────────────────────────────
+// -- Paid/Unpaid Toggle -------------------------------------------
 function setBillPaidStatus(status) {
   document.getElementById('bill-paid-status').value = status;
   document.getElementById('bill-paid-btn').classList.toggle('active', status === 'paid');
@@ -407,7 +407,7 @@ function setTxnPaidStatus(status) {
   document.getElementById('txn-unpaid-btn').classList.toggle('active', status === 'unpaid');
 }
 
-// ── Customer Dropdowns ───────────────────────────────────────────
+// -- Customer Dropdowns -------------------------------------------
 function refreshCustomerDropdowns() {
   const opts = `<option value="">-- Walk-in / Select --</option>` + customers.map(c => `<option value="${c.id}">${c.name} (${c.phone})</option>`).join('');
   document.getElementById('txn-customer').innerHTML = opts;
@@ -415,7 +415,7 @@ function refreshCustomerDropdowns() {
   document.getElementById('bill-customer').innerHTML = billOpts;
 }
 
-// ── Item Rows (shared) ───────────────────────────────────────────
+// -- Item Rows (shared) -------------------------------------------
 function getProductOptions() {
   if (products.length === 0) {
     return `<option value="">-- No products, add in Products page --</option>`;
@@ -426,7 +426,7 @@ function getProductOptions() {
     grouped[p.category].push(p);
   });
   return Object.entries(grouped).map(([cat, items]) =>
-    `<optgroup label="${cat}">${items.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} (₹${p.price})</option>`).join('')}</optgroup>`
+    `<optgroup label="${cat}">${items.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} (?${p.price})</option>`).join('')}</optgroup>`
   ).join('');
 }
 
@@ -437,8 +437,8 @@ function itemRowHTML(prefix, idx) {
       ${getProductOptions()}
     </select>
     <input type="number" min="1" value="1" placeholder="Qty" onchange="calcTotal('${prefix}')" />
-    <input type="number" min="0" step="0.5" value="0" placeholder="Rate ₹" onchange="calcTotal('${prefix}')" />
-    <button class="btn-danger" onclick="removeItemRow('${prefix}',${idx})">✕</button>
+    <input type="number" min="0" step="0.5" value="0" placeholder="Rate ?" onchange="calcTotal('${prefix}')" />
+    <button class="btn-danger" onclick="removeItemRow('${prefix}',${idx})">?</button>
   </div>`;
 }
 
@@ -488,7 +488,7 @@ function getItems(prefix) {
   const items = [];
   container.querySelectorAll('.bill-item-row').forEach(row => {
     const sel = row.querySelector('select');
-    const name = sel.options[sel.selectedIndex]?.text?.replace(/\s*\(₹.*\)$/, '').trim() || sel.value;
+    const name = sel.options[sel.selectedIndex]?.text?.replace(/\s*\(?.*\)$/, '').trim() || sel.value;
     const qty = parseFloat(row.querySelectorAll('input')[0].value) || 0;
     const rate = parseFloat(row.querySelectorAll('input')[1].value) || 0;
     if (qty > 0 && rate > 0 && sel.value) items.push({ name, qty, rate, amount: qty * rate });
@@ -496,7 +496,7 @@ function getItems(prefix) {
   return items;
 }
 
-// ── Transactions ─────────────────────────────────────────────────
+// -- Transactions -------------------------------------------------
 let txnFilter = 'all';
 let txnFromDate = null, txnToDate = null;
 
@@ -634,7 +634,7 @@ function saveTransaction() {
   transactions.push(txn);
   save('transactions', transactions);
 
-  // if unpaid and customer selected → add to kata book
+  // if unpaid and customer selected ? add to kata book
   if (paidStatus === 'unpaid' && custId) {
     const kata = { id: 'K' + Date.now().toString(), customerId: custId, customerName: cust.name, date: txn.date, items, total, paidStatus: 'unpaid', txnId: txn.id };
     kataEntries.push(kata);
@@ -649,7 +649,7 @@ function saveTransaction() {
 }
 
 function deleteTxn(id) {
-  showConfirm('Delete this transaction?', () => {
+  showDialog('Delete this transaction?', () => {
     transactions = transactions.filter(t => t.id !== id);
     save('transactions', transactions);
     kataEntries = kataEntries.filter(k => k.txnId !== id);
@@ -661,7 +661,7 @@ function deleteTxn(id) {
   });
 }
 
-// ── Billing ──────────────────────────────────────────────────────
+// -- Billing ------------------------------------------------------
 let lastBill = null;
 
 function generateBill() {
@@ -688,7 +688,7 @@ function generateBill() {
   transactions.push(txn);
   save('transactions', transactions);
 
-  // if unpaid and customer selected → add to kata book
+  // if unpaid and customer selected ? add to kata book
   if (paidStatus === 'unpaid' && custId) {
     const kata = { id: 'K' + Date.now().toString(), customerId: custId, customerName: cust.name, date: txn.date, items, total, paidStatus: 'unpaid', billNo, txnId: txn.id };
     kataEntries.push(kata);
@@ -699,7 +699,7 @@ function generateBill() {
   renderCustomers();
   renderTransactions();
   renderDashboard();
-  toast(paidStatus === 'unpaid' ? '\u26a0\ufe0f Bill saved as Unpaid!' : 'Bill generated & saved! ✅', paidStatus === 'unpaid' ? 'error' : 'success');
+  toast(paidStatus === 'unpaid' ? '\u26a0\ufe0f Bill saved as Unpaid!' : 'Bill generated & saved! ?', paidStatus === 'unpaid' ? 'error' : 'success');
 }
 
 function renderBillPreview({ billNo, date, cust, items, total, payment, paidStatus, notes }) {
@@ -752,13 +752,13 @@ async function saveBillAsPDF() {
   if (IS_DESKTOP) {
     try {
       const result = await window.electronAPI.saveBillPDF(html, lastBill.billNo);
-      if (!result.canceled) toast('Bill saved as PDF! ✅', 'success');
+      if (!result.canceled) toast('Bill saved as PDF! ?', 'success');
     } catch (err) {
       toast(`Could not save PDF: ${err.message}`, 'error');
     }
     return;
   }
-  // browser fallback — open print dialog
+  // browser fallback � open print dialog
   const win = window.open('', '_blank');
   if (!win) return toast('Allow pop-ups to save the bill as PDF', 'error');
   win.document.write(html);
@@ -775,7 +775,7 @@ function printBill() {
   win.print();
 }
 
-// ── WhatsApp Messages ────────────────────────────────────────────
+// -- WhatsApp Messages --------------------------------------------
 const WA_SERVER = 'http://127.0.0.1:3001';
 
 function toggleCustomerSelect() {
@@ -832,25 +832,25 @@ function updateWABadge(connected, qrReady, connectionState) {
     if (!badge) return;
 
     if (connected) {
-      badge.textContent = '🟢 WhatsApp Connected';
+      badge.textContent = '?? WhatsApp Connected';
       badge.className = 'wa-badge connected';
       if (btnConnect)    btnConnect.style.display    = 'none';
       if (btnReconnect)  btnReconnect.style.display  = 'inline-flex';
       if (btnDisconnect) btnDisconnect.style.display = 'inline-flex';
     } else if (isDisconnected) {
-      badge.textContent = '⚫ Disconnected';
+      badge.textContent = '? Disconnected';
       badge.className = 'wa-badge offline';
       if (btnConnect)    btnConnect.style.display    = 'inline-flex';
       if (btnReconnect)  btnReconnect.style.display  = 'none';
       if (btnDisconnect) btnDisconnect.style.display = 'none';
     } else if (qrReady) {
-      badge.textContent = '📱 Scan QR to Connect';
+      badge.textContent = '?? Scan QR to Connect';
       badge.className = 'wa-badge qr';
       if (btnConnect)    btnConnect.style.display    = 'inline-flex';
       if (btnReconnect)  btnReconnect.style.display  = 'none';
       if (btnDisconnect) btnDisconnect.style.display = 'none';
     } else {
-      badge.textContent = '🔴 Connecting...';
+      badge.textContent = '?? Connecting...';
       badge.className = 'wa-badge offline';
       if (btnConnect)    btnConnect.style.display    = 'none';
       if (btnReconnect)  btnReconnect.style.display  = 'none';
@@ -864,7 +864,7 @@ async function waDisconnect() {
   try {
     await window.electronAPI.disconnectWA();
     updateWABadge(false, false, 'disconnected');
-    toast('WhatsApp disconnected ✅');
+    toast('WhatsApp disconnected ?');
   } catch (err) {
     toast('Disconnect failed: ' + err.message, 'error');
   }
@@ -889,28 +889,28 @@ if (IS_DESKTOP) {
   window.electronAPI.onUpdateResult(({ status, version }) => {
     const btn = document.getElementById('check-update-btn');
     const statusEl = document.getElementById('update-status');
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Check for Update'; }
+    if (btn) { btn.disabled = false; btn.textContent = '?? Check for Update'; }
     if (!statusEl) return;
     if (status === 'available') {
       statusEl.style.color = '#2563eb';
-      statusEl.innerHTML = `🆕 <strong>${version}</strong> is available. Preparing download...`;
+      statusEl.innerHTML = `?? <strong>${version}</strong> is available. Preparing download...`;
     } else if (status === 'downloading') {
       statusEl.style.color = '#d97706';
-      statusEl.innerHTML = `⏳ Downloading update... Please wait.`;
+      statusEl.innerHTML = `? Downloading update... Please wait.`;
       if (btn) btn.disabled = true;
     } else if (status === 'done') {
       statusEl.style.color = '#16a34a';
-      statusEl.innerHTML = `✅ Download complete! The installer has opened — follow the steps to update.`;
+      statusEl.innerHTML = `? Download complete! The installer has opened � follow the steps to update.`;
       if (btn) btn.disabled = false;
     } else if (status === 'up-to-date') {
       statusEl.style.color = '#16a34a';
-      statusEl.innerHTML = `✅ You're already on the latest version.`;
+      statusEl.innerHTML = `? You're already on the latest version.`;
     } else if (status === 'cancelled') {
       statusEl.style.color = '#64748b';
       statusEl.innerHTML = `Update skipped.`;
     } else {
       statusEl.style.color = '#dc2626';
-      statusEl.innerHTML = `❌ Could not check for updates. Check your internet connection.`;
+      statusEl.innerHTML = `? Could not check for updates. Check your internet connection.`;
     }
   });
 }
@@ -936,10 +936,10 @@ async function sendWhatsApp() {
 
   const btn = document.getElementById('send-whatsapp-btn');
   btn.disabled = true;
-  btn.textContent = '⏳ Sending...';
+  btn.textContent = '? Sending...';
 
   const log = document.getElementById('msg-log');
-  log.innerHTML = `<h3 style="margin-bottom:10px">📋 Sending to ${targets.length} customer(s)...</h3>`;
+  log.innerHTML = `<h3 style="margin-bottom:10px">?? Sending to ${targets.length} customer(s)...</h3>`;
 
   try {
     const attachmentFile = document.getElementById('msg-attachment').files[0];
@@ -967,25 +967,25 @@ async function sendWhatsApp() {
       showSendResults(log, data.results, targets.length);
     }
   } catch (err) {
-    log.innerHTML = `<div class="msg-log-item failed">❌ Error: ${err.message}</div>`;
+    log.innerHTML = `<div class="msg-log-item failed">? Error: ${err.message}</div>`;
     toast('Failed to send. Is the server running?', 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = '💬 Send via WhatsApp';
+    btn.textContent = '?? Send via WhatsApp';
   }
 }
 
 function showSendResults(log, results, total) {
-  log.innerHTML = `<h3 style="margin-bottom:10px">📋 Results</h3>`;
+  log.innerHTML = `<h3 style="margin-bottom:10px">?? Results</h3>`;
   results.forEach(r => {
     const ok = r.status === 'sent';
     log.insertAdjacentHTML('beforeend', `
       <div class="msg-log-item ${ok ? '' : 'failed'}">
-        ${ok ? '✅' : '❌'} <strong>${r.name}</strong> (${r.phone}) — ${ok ? 'Message sent!' : 'Failed: ' + r.error}
+        ${ok ? '?' : '?'} <strong>${r.name}</strong> (${r.phone}) � ${ok ? 'Message sent!' : 'Failed: ' + r.error}
       </div>`);
   });
   const sentCount = results.filter(r => r.status === 'sent').length;
-  toast(`✅ Sent to ${sentCount}/${total} customers!`);
+  toast(`? Sent to ${sentCount}/${total} customers!`);
 }
 
 function checkForAppUpdate() {
@@ -993,22 +993,22 @@ function checkForAppUpdate() {
     const statusEl = document.getElementById('update-status');
     if (statusEl) {
       statusEl.style.color = '#92400e';
-      statusEl.innerHTML = '⚠️ App updates are only available in the desktop app. Download the latest installer from GitHub.';
+      statusEl.innerHTML = '?? App updates are only available in the desktop app. Download the latest installer from GitHub.';
     }
     return;
   }
   const btn = document.getElementById('check-update-btn');
   const statusEl = document.getElementById('update-status');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Checking...'; }
+  if (btn) { btn.disabled = true; btn.textContent = '? Checking...'; }
   if (statusEl) { statusEl.innerHTML = ''; statusEl.style.color = ''; }
   window.electronAPI.checkUpdate();
   setTimeout(() => {
-    if (btn && btn.disabled) { btn.disabled = false; btn.textContent = '🔄 Check for Update'; }
+    if (btn && btn.disabled) { btn.disabled = false; btn.textContent = '?? Check for Update'; }
   }, 12000);
 }
 
-// ── Init ─────────────────────────────────────────────────────────
-// ── Settings ────────────────────────────────────────────
+// -- Init ---------------------------------------------------------
+// -- Settings --------------------------------------------
 function loadSettingsForm() {
   document.getElementById('s-name-tamil').value  = settings.nameTamil;
   document.getElementById('s-name-english').value = settings.nameEnglish;
@@ -1051,7 +1051,7 @@ function saveSettings() {
   localStorage.setItem('settings', JSON.stringify(settings));
 
   // update sidebar logo live
-  document.querySelector('.shop-name-tamil').textContent = settings.nameTamil || '🖨️ Shop';
+  document.querySelector('.shop-name-tamil').textContent = settings.nameTamil || '??? Shop';
   document.querySelector('.shop-name-sub').textContent   = settings.nameEnglish;
 
   renderSettingsPreview();
@@ -1129,7 +1129,7 @@ function applyLogo(base64) {
 }
 
 function applySettingsToUI() {
-  document.querySelector('.shop-name-tamil').textContent = settings.nameTamil || '🖨️ Shop';
+  document.querySelector('.shop-name-tamil').textContent = settings.nameTamil || '??? Shop';
   document.querySelector('.shop-name-sub').textContent   = settings.nameEnglish;
   const savedLogo = localStorage.getItem('shopLogo');
   applyLogo(savedLogo || null);
